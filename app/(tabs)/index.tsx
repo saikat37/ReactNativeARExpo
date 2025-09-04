@@ -1,10 +1,10 @@
 import { StyleSheet, View } from 'react-native';
-import ModernARInterface from '@/components/ModernARInterface';
+import ModelAR3D from '@/components/ModelAR3D';
 
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
-      <ModernARInterface />
+      <ModelAR3D />
     </View>
   );
 }

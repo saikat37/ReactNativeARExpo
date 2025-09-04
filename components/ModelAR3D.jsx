@@ -13,7 +13,7 @@ const ModelAR3D = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [objects3D, setObjects3D] = useState([]);
   const [isARActive, setIsARActive] = useState(false);
-  const [selectedObjectType, setSelectedObjectType] = useState('cube');
+  const [selectedObjectType, setSelectedObjectType] = useState('chair');
   const [showControls, setShowControls] = useState(true);
   const [physicsEnabled, setPhysicsEnabled] = useState(true);
   const [lightingMode, setLightingMode] = useState('dynamic');
@@ -81,15 +81,82 @@ const ModelAR3D = () => {
       
       const loader = new GLTFLoader();
       
-      // For now, skip GLB loading and use basic shapes until we can properly configure asset loading
-      console.log('GLB loading temporarily disabled - using basic geometries');
-      setLoadingProgress('Using basic 3D shapes (GLB loading in progress)');
-      setModelsLoaded(true);
+      // Load chair.glb from assets
+      const chairAsset = Asset.fromModule(require('../assets/models/chair.glb'));
+      await chairAsset.downloadAsync();
       
-      // TODO: Implement proper GLB loading once asset configuration is resolved
+      console.log('Chair asset downloaded, loading with GLTF loader...');
+      
+      // Load the GLB model
+      loader.load(
+        chairAsset.localUri,
+        (gltf) => {
+          console.log('Chair model loaded successfully!');
+          const chairModel = gltf.scene.clone();
+          
+          // Normalize the chair model properly
+          const box = new THREE.Box3().setFromObject(chairModel);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z) || 1;
+          const targetSize = 1.2; // 1.2 meters for better visibility
+          const scale = targetSize / maxDim;
+          chairModel.scale.setScalar(scale);
+          
+          // Position the chair properly - centered and sitting on ground
+          box.setFromObject(chairModel); // Recalculate after scaling
+          const center = box.getCenter(new THREE.Vector3());
+          const yMin = box.min.y;
+          
+          chairModel.position.x -= center.x; // Center X
+          chairModel.position.z -= center.z; // Center Z 
+          chairModel.position.y -= yMin;     // Sit on ground (y=0)
+          
+          // Enhance materials for better visibility
+          chairModel.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              
+              // Improve material properties
+              if (child.material) {
+                if (child.material.map) {
+                  // Keep textures but enhance them
+                  child.material.metalness = 0.1;
+                  child.material.roughness = 0.8;
+                } else {
+                  // Add a nice wood-like color for untextured parts
+                  child.material.color = new THREE.Color(0x8B4513);
+                  child.material.metalness = 0.0;
+                  child.material.roughness = 0.9;
+                }
+              }
+            }
+          });
+          
+          // Store the processed model
+          loadedModelsRef.current['chair'] = chairModel;
+          
+          console.log('Chair model processed and ready for use');
+          setLoadingProgress('✅ Chair model ready!');
+          setModelsLoaded(true);
+        },
+        (progress) => {
+          if (progress.total > 0) {
+            const progressPercent = Math.round((progress.loaded / progress.total) * 100);
+            setLoadingProgress(`📦 Loading chair: ${progressPercent}%`);
+          }
+        },
+        (error) => {
+          console.error('Error loading chair GLB:', error);
+          console.warn('Falling back to procedural chair geometry');
+          setLoadingProgress('⚠️ Using fallback chair geometry');
+          setModelsLoaded(true);
+        }
+      );
       
     } catch (error) {
-      console.error('Error loading models:', error);
+      console.error('Error setting up model loading:', error);
       setLoadingProgress('Using basic geometries');
       setModelsLoaded(true);
     }
